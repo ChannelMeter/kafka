@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopify/sarama"
 	"github.com/wvanbergen/kazoo-go"
-	"gopkg.in/Shopify/sarama.v1"
 )
 
 const (
