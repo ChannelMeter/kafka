@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/shopify/sarama"
+	"github.com/Shopify/sarama"
 )
 
 type MessageMetadata struct {

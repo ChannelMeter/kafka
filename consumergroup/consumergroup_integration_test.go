@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shopify/sarama"
+	"github.com/Shopify/sarama"
 	"github.com/wvanbergen/kazoo-go"
 )
 

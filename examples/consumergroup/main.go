@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shopify/sarama"
+	"github.com/Shopify/sarama"
 	"github.com/wvanbergen/kafka/consumergroup"
 )
 

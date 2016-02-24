@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shopify/sarama"
+	"github.com/Shopify/sarama"
 )
 
 const (
