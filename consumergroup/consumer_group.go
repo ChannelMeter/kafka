@@ -195,6 +195,7 @@ func (cg *ConsumerGroup) PartitionMessages(m []<-chan *sarama.ConsumerMessage) [
 	if cap(m) < len(cg.partitions) {
 		m = make([]<-chan *sarama.ConsumerMessage, len(cg.partitions))
 	}
+	m = m[:len(cg.partitions)]
 	for i, p := range cg.partitions {
 		m[i] = p.Messages
 	}
