@@ -124,7 +124,8 @@ func JoinConsumerGroup(name string, topics []string, zookeeper []string, config 
 	}
 
 	group := kz.Consumergroup(name)
-	instance := group.NewInstance()
+	_id, _ := generateConsumerID()
+	instance := group.Instance(_id)
 
 	var consumer sarama.Consumer
 	if consumer, err = sarama.NewConsumer(brokers, config.Config); err != nil {
