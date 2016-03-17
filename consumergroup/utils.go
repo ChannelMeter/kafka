@@ -98,15 +98,21 @@ func generateUUID() (string, error) {
 func generateConsumerID() (consumerID string, err error) {
 	var uuid, hostname string
 
+	if hostname = os.Getenv("HOST"); hostname != "" {
+		if uuid = os.Getenv("MESOS_TASK_ID"); uuid != "" {
+			consumerID = fmt.Sprintf("%s:%s", hostname, uuid)
+			return
+		}
+	}
+
 	uuid, err = generateUUID()
 	if err != nil {
 		return
 	}
-	if hostname = os.Getenv("HOST"); hostname == "" {
-		hostname, err = os.Hostname()
-		if err != nil {
-			return
-		}
+
+	hostname, err = os.Hostname()
+	if err != nil {
+		return
 	}
 
 	consumerID = fmt.Sprintf("%s:%s", hostname, uuid)
