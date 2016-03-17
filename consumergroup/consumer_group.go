@@ -396,7 +396,7 @@ func (cg *ConsumerGroup) partitionConsumer(topic string, partition int32, messag
 			select {
 			case <-stopper:
 				return
-			case <-time.After((1 + time.Duration(tries)) * time.Second):
+			case <-time.After((5 + time.Duration(tries)) * time.Second):
 
 			}
 		} else {
