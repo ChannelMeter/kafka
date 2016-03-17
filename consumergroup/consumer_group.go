@@ -234,8 +234,15 @@ func (cg *ConsumerGroup) Close() error {
 		if shutdownError = cg.consumer.Close(); shutdownError != nil {
 			cg.Logf("FAILED closing the Sarama client: %s\n", shutdownError)
 		}
-
-		close(cg.messages)
+		if cg.config.SeperateMessagePartitions {
+			cg.partitionsLock.Lock()
+			for _, p := range cg.partitions {
+				close(p.Messages)
+			}
+			cg.partitionsLock.Unlock()
+		} else {
+			close(cg.messages)
+		}
 		close(cg.errors)
 		cg.instance = nil
 	})
@@ -292,7 +299,9 @@ func (cg *ConsumerGroup) topicListConsumer(topics []string) {
 			cg.partitions = cg.partitions[:len(topics)]
 			for i, topic := range topics {
 				cg.partitions[i].Topic = topic
-				cg.partitions[i].Messages = make(chan *sarama.ConsumerMessage, cg.config.ChannelBufferSize)
+				if cg.partitions[i].Messages == nil {
+					cg.partitions[i].Messages = make(chan *sarama.ConsumerMessage, cg.config.ChannelBufferSize)
+				}
 				cg.wg.Add(1)
 				go cg.topicConsumer(topic, cg.partitions[i].Messages, cg.errors, stopper)
 			}
