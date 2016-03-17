@@ -17,7 +17,8 @@ var (
 type Config struct {
 	*sarama.Config
 
-	Zookeeper *kazoo.Config
+	Zookeeper                 *kazoo.Config
+	SeperateMessagePartitions bool
 
 	Offsets struct {
 		Initial           int64         // The initial offset method to use if the consumer has no previously stored offset. Must be either sarama.OffsetOldest (default) or sarama.OffsetNewest.
@@ -72,9 +73,14 @@ type ConsumerGroup struct {
 	wg             sync.WaitGroup
 	singleShutdown sync.Once
 
-	messages chan *sarama.ConsumerMessage
-	errors   chan *sarama.ConsumerError
-	stopper  chan struct{}
+	messages   chan *sarama.ConsumerMessage
+	partitions []struct {
+		Topic    string
+		Messages chan *sarama.ConsumerMessage
+	}
+	partitionsLock sync.Mutex
+	errors         chan *sarama.ConsumerError
+	stopper        chan struct{}
 
 	consumers kazoo.ConsumergroupInstanceList
 
@@ -134,9 +140,11 @@ func JoinConsumerGroup(name string, topics []string, zookeeper []string, config 
 		group:    group,
 		instance: instance,
 
-		messages: make(chan *sarama.ConsumerMessage, config.ChannelBufferSize),
-		errors:   make(chan *sarama.ConsumerError, config.ChannelBufferSize),
-		stopper:  make(chan struct{}),
+		errors:  make(chan *sarama.ConsumerError, config.ChannelBufferSize),
+		stopper: make(chan struct{}),
+	}
+	if !config.SeperateMessagePartitions {
+		cg.messages = make(chan *sarama.ConsumerMessage, config.ChannelBufferSize)
 	}
 
 	// Register consumer group
@@ -173,7 +181,25 @@ func JoinConsumerGroup(name string, topics []string, zookeeper []string, config 
 
 // Returns a channel that you can read to obtain events from Kafka to process.
 func (cg *ConsumerGroup) Messages() <-chan *sarama.ConsumerMessage {
+	if cg.config.SeperateMessagePartitions {
+		panic("Messages() called on ConsumerGroup with SeperateMessagePartitions set.")
+	}
 	return cg.messages
+}
+
+func (cg *ConsumerGroup) PartitionMessages(m []<-chan *sarama.ConsumerMessage) []<-chan *sarama.ConsumerMessage {
+	if !cg.config.SeperateMessagePartitions {
+		panic("PartitionMessages() called on ConsumerGroup with SeperateMessagePartitions not set.")
+	}
+	cg.partitionsLock.Lock()
+	if cap(m) < len(cg.partitions) {
+		m = make([]<-chan *sarama.ConsumerMessage, len(cg.partitions))
+	}
+	for i, p := range cg.partitions {
+		m[i] = p.Messages
+	}
+	cg.partitionsLock.Unlock()
+	return m
 }
 
 // Returns a channel that you can read to obtain events from Kafka to process.
@@ -255,9 +281,27 @@ func (cg *ConsumerGroup) topicListConsumer(topics []string) {
 
 		stopper := make(chan struct{})
 
-		for _, topic := range topics {
-			cg.wg.Add(1)
-			go cg.topicConsumer(topic, cg.messages, cg.errors, stopper)
+		if cg.config.SeperateMessagePartitions {
+			cg.partitionsLock.Lock()
+			if cap(cg.partitions) < len(topics) {
+				cg.partitions = make([]struct {
+					Topic    string
+					Messages chan *sarama.ConsumerMessage
+				}, len(topics))
+			}
+			cg.partitions = cg.partitions[:len(topics)]
+			for i, topic := range topics {
+				cg.partitions[i].Topic = topic
+				cg.partitions[i].Messages = make(chan *sarama.ConsumerMessage, cg.config.ChannelBufferSize)
+				cg.wg.Add(1)
+				go cg.topicConsumer(topic, cg.partitions[i].Messages, cg.errors, stopper)
+			}
+			cg.partitionsLock.Unlock()
+		} else {
+			for _, topic := range topics {
+				cg.wg.Add(1)
+				go cg.topicConsumer(topic, cg.messages, cg.errors, stopper)
+			}
 		}
 
 		select {
