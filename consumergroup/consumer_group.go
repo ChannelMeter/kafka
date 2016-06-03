@@ -23,7 +23,8 @@ type Config struct {
 	Offsets struct {
 		Initial           int64         // The initial offset method to use if the consumer has no previously stored offset. Must be either sarama.OffsetOldest (default) or sarama.OffsetNewest.
 		ProcessingTimeout time.Duration // Time to wait for all the offsets for a partition to be processed after stopping to consume from it. Defaults to 1 minute.
-		CommitInterval    time.Duration // The interval between which the prossed offsets are commited.
+		CommitInterval    time.Duration // The interval between which the processed offsets are commited.
+		ResetOffsets      bool          // Resets the offsets for the consumergroup so that it won't resume from where it left off previously.
 	}
 }
 
@@ -124,6 +125,15 @@ func JoinConsumerGroup(name string, topics []string, zookeeper []string, config 
 	}
 
 	group := kz.Consumergroup(name)
+
+	if config.Offsets.ResetOffsets {
+		err = group.ResetOffsets()
+		if err != nil {
+			kz.Close()
+			return
+		}
+	}
+
 	_id, _ := generateConsumerID()
 	instance := group.Instance(_id)
 
@@ -321,6 +331,18 @@ func (cg *ConsumerGroup) topicListConsumer(topics []string) {
 			return
 
 		case <-consumerChanges:
+			registered, err := cg.instance.Registered()
+			if err != nil {
+				cg.Logf("FAILED to get register status: %s\n", err)
+			} else if !registered {
+				err = cg.instance.Register(topics)
+				if err != nil {
+					cg.Logf("FAILED to register consumer instance: %s!\n", err)
+				} else {
+					cg.Logf("Consumer instance registered (%s).", cg.instance.ID)
+				}
+			}
+
 			cg.Logf("Triggering rebalance due to consumer list change\n")
 			close(stopper)
 			cg.wg.Wait()
