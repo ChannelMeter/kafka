@@ -410,7 +410,7 @@ func (cg *ConsumerGroup) partitionConsumer(topic string, partition int32, messag
 	default:
 	}
 
-	for maxRetries, tries := 3, 0; tries < maxRetries; tries++ {
+	for maxRetries, tries := 5, 0; tries < maxRetries; tries++ {
 
 		if err := cg.instance.ClaimPartition(topic, partition); err == nil {
 			break
